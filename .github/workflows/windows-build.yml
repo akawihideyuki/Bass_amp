@@ -1,0 +1,37 @@
+name: Windows Build
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build
+
+      - name: Build Release
+        shell: pwsh
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Run tests
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bass_amp-v1.0-windows
+          path: |
+            build/**/Release/Bass_amp.exe
+          if-no-files-found: error
