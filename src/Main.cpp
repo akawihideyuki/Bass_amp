@@ -5,7 +5,7 @@ class BassAmpApplication final : public juce::JUCEApplication
 {
 public:
     const juce::String getApplicationName() override { return "Bass_amp"; }
-    const juce::String getApplicationVersion() override { return "0.1.0"; }
+    const juce::String getApplicationVersion() override { return "1.0.0"; }
     bool moreThanOneInstanceAllowed() override { return true; }
 
     void initialise(const juce::String&) override
@@ -34,7 +34,7 @@ private:
         {
             setUsingNativeTitleBar(true);
             setResizable(true, false);
-            setResizeLimits(900, 620, 1800, 1100);
+            setResizeLimits(980, 650, 1800, 1100);
             setContentOwned(new MainComponent(), true);
             centreWithSize(getWidth(), getHeight());
             setVisible(true);

@@ -1,99 +1,140 @@
-# AGENTS.md - Bass_amp
+# Bass_amp Agent Guide
 
-## Project
+This file is persistent development guidance for agents working in this repository.
 
-Bass_amp is a Windows 11 standalone real-time electric-bass amplifier simulator.
+## Product
 
-The primary priorities are, in order:
+Bass_amp is a Windows 11 standalone real-time bass amplifier simulator.
 
-1. Stable audio
-2. Low latency
-3. No dangerous bursts, NaN/Inf, or avoidable drop-outs
-4. Good bass tone
-5. Simple UX
-6. CPU efficiency
-7. Visual polish
-8. Additional features
+The v1.0 product specification is `docs/SPECIFICATION.md`.
 
-Read `docs/SPECIFICATION.md` before changing architecture or DSP behaviour.
-
-## Toolchain
+## Stack
 
 - C++20
-- CMake 3.22+
 - JUCE 9.0.1
-- Windows 11 / Visual Studio 2022
-- Standalone app only for v1
-- License: AGPL-3.0-only
+- CMake 3.22+
+- Windows standalone app
+- ASIO enabled with JUCE
+- WASAPI supported by JUCE
+- AGPL-3.0-only project license
 
-JUCE is fetched by CMake FetchContent and pinned to 9.0.1.
-
-## Audio backends
-
-- Enable JUCE ASIO with `JUCE_ASIO=1`.
-- Use JUCE's bundled ASIO headers unless the project explicitly changes policy.
-- WASAPI must remain available as fallback.
-- ASIO4ALL is not bundled. It is treated as an installed ASIO driver.
-- Do not add vendor-specific driver code without a concrete need.
-
-## Real-time audio rules
-
-Inside the real-time audio callback / DSP processing path, do not:
-
-- allocate heap memory
-- read or write files
-- parse JSON
-- update GUI widgets
-- write directly to disk logs
-- wait on mutexes
-- load IR files
-- perform network operations
-
-Parameter values crossing from GUI to DSP should use atomics or another real-time-safe mechanism. Continuous audible parameters should be smoothed where practical.
+Do not introduce another application framework or audio framework without a concrete requirement.
 
 ## Architecture
 
-Keep these responsibilities separated:
+Keep these responsibilities separate:
 
-- `MainComponent`: GUI and JUCE AudioAppComponent integration
-- `dsp/BassAmpProcessor`: reusable bass DSP core
-- future `tuner/`: pitch analysis outside the audio callback
-- future `preset/`: serialisation and migrations
-- future `diagnostics/`: callback timing / device status
+- `src/dsp/`: realtime amp, dynamics, EQ, cabinet and IR processing
+- `src/tuner/`: pitch analysis
+- `src/preset/`: persistent sound-state serialization
+- `src/audio/`: audio-device persistence/helpers
+- `src/diagnostics/`: realtime-safe diagnostic counters
+- `src/MainComponent.*`: application orchestration and GUI
 
-DSP code must not depend on concrete GUI classes.
+Do not move filesystem, JSON, dialogs, or UI logic into `BassAmpProcessor`.
 
-## DSP policy
+## Realtime audio rules
 
-Default signal chain:
+The audio callback must not:
 
-Input -> Gate -> Compressor -> Amp -> Low Clean recombination -> 4-band EQ -> Cabinet -> Limiter -> Master
+- perform heap allocation
+- read/write files
+- parse JSON/XML
+- display dialogs
+- call normal logging sinks
+- block on mutexes
+- wait for another thread
 
-Amp voicings share one engine and differ by parameter/profile behaviour. Do not copy the whole DSP chain into separate Vintage/Modern/Aggressive implementations.
+Preallocate DSP working memory in `prepare()`.
 
-Protect the output from invalid floating-point values. Extreme valid parameter settings must not crash or generate NaN/Inf.
+Atomic values or wait-free/single-producer-single-consumer structures are preferred for realtime communication.
 
-## Build verification
+If a lock is unavoidable around a JUCE object that requires serialization, the audio callback must use a non-blocking try-lock and safely skip that optional processing for the block when the lock is unavailable.
 
-After changes:
+## DSP safety
 
-1. Configure with CMake on Windows.
-2. Build Release.
-3. If DSP changed, test silence and strong input mentally or with automated tests when available.
-4. Confirm ASIO and WASAPI support were not accidentally disabled.
-5. Check GitHub Actions.
+All external parameter values must be clamped.
 
-Never report runtime audio hardware testing as completed unless it was actually performed on hardware.
+All processed samples must be protected from NaN/Infinity propagation.
 
-## Scope control
+The final limiter must remain in the normal processed path.
 
-Do not add these to v1 without explicit approval:
+Device/startup changes must fade in rather than emit an abrupt buffer.
 
-- VST3/AU/AAX
-- neural amp capture/model inference
-- DAW or multitrack features
-- cloud accounts
-- auto updater
-- macOS/Linux support
+Do not hard-code calculations to 48 kHz. 48 kHz / 128 samples is the recommended operating point, not a code assumption.
 
-Prefer a complete, reliable bass amp over a wide but unfinished effect suite.
+## Bass-specific behaviour
+
+Preserve the Low Clean architecture around ~120 Hz.
+
+Do not turn the amp into a guitar-oriented model by removing clean low-frequency support.
+
+Vintage / Modern / Aggressive use one shared engine with profiles/behavioural differences rather than three copy-pasted processors.
+
+## ASIO
+
+ASIO and WASAPI are both supported.
+
+ASIO4ALL requires no dedicated backend; it appears as an installed ASIO driver.
+
+Do not bundle ASIO4ALL.
+
+## User IR
+
+Do not add third-party IR binary files unless their redistribution terms have been explicitly verified.
+
+User-selected WAV/AIFF IRs are supported through JUCE convolution.
+
+Do not perform filesystem IR loading directly inside ordinary per-sample DSP code.
+
+## Presets
+
+Preset files are JSON and must contain `presetVersion`.
+
+New parameters must have safe defaults so older presets continue loading.
+
+Broken presets must fail gracefully without crashing.
+
+## Tests
+
+Before considering a change complete, run:
+
+```powershell
+cmake -S . -B build
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Relevant changes should preserve tests for:
+
+- 44.1 / 48 / 96 kHz
+- 64 / 128 / 256 / 512 blocks
+- NaN/Infinity protection
+- extreme gain settings
+- bypass
+- pitch detection
+- preset serialization
+
+GitHub Actions Windows Build must be green before merging significant changes.
+
+## Change policy
+
+Prefer small cohesive changes.
+
+Do not perform unrelated mass formatting.
+
+Do not add dependencies when JUCE or a small local implementation is sufficient.
+
+If realtime behaviour changes, explain expected latency/CPU consequences in the PR.
+
+## Done
+
+A code change is not done merely because it was committed.
+
+For significant changes:
+
+1. inspect affected code
+2. build Release
+3. run automated tests
+4. inspect CI
+5. state what still requires physical audio-hardware testing
