@@ -7,6 +7,9 @@ on:
       - "feature/**"
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -35,3 +38,35 @@ jobs:
           path: |
             build/**/Release/Bass_amp.exe
           if-no-files-found: error
+
+      - name: Package Windows release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Filter Bass_amp.exe -Recurse |
+            Where-Object { $_.FullName -match '[\\/]Release[\\/]' } |
+            Select-Object -First 1
+          if ($null -eq $exe) {
+            throw 'Bass_amp.exe was not found after the Release build.'
+          }
+          Compress-Archive -LiteralPath $exe.FullName -DestinationPath Bass_amp-windows.zip -Force
+
+      - name: Publish v1.0.0 GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v1.0.0'
+          $repo = $env:GITHUB_REPOSITORY
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag Bass_amp-windows.zip --clobber --repo $repo
+          }
+          else {
+            gh release create $tag Bass_amp-windows.zip `
+              --repo $repo `
+              --target $env:GITHUB_SHA `
+              --title 'Bass_amp v1.0.0' `
+              --notes 'Windows 11 standalone build. Download Bass_amp-windows.zip, or use Launch_Bass_amp.bat from the repository for automatic download and launch.'
+          }
