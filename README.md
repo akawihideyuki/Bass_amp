@@ -55,6 +55,33 @@ If no native ASIO driver is available, ASIO4ALL or WASAPI can be selected from *
 
 64 samples may reduce latency further on sufficiently stable hardware. If clicks/dropouts occur, try 256 samples.
 
+## Quick launch on Windows
+
+After cloning or downloading the repository, double-click:
+
+```text
+Launch_Bass_amp.bat
+```
+
+The launcher looks for the normal Release executable first:
+
+```text
+build\BassAmp_artefacts\Release\Bass_amp.exe
+```
+
+- If the executable already exists, Bass_amp starts immediately.
+- If it does not exist, the launcher calls `scripts\build_windows.bat`, builds the Release version, then starts Bass_amp automatically.
+- If the executable output path changes, the launcher also searches under the `build` directory for `Bass_amp.exe`.
+- If configuration or compilation fails, the console stays open and shows a short error message.
+
+The first automatic build still requires the development tools listed below. After a successful build, normal use is just a double-click on `Launch_Bass_amp.bat`.
+
+To build without launching, double-click or run:
+
+```text
+scripts\build_windows.bat
+```
+
 ## Build requirements
 
 - Windows 11 64-bit
