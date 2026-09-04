@@ -53,6 +53,7 @@ target_compile_definitions(BassAmp PRIVATE
     JUCE_ASIO_USE_EXTERNAL_SDK=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
+    orangeRed=orangered
 )
 
 target_link_libraries(BassAmp PRIVATE
